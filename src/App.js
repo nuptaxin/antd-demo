@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Button, Layout, Menu, Breadcrumb, Icon, Table } from 'antd';
+import { Button, Layout, Menu, Breadcrumb, Icon, Table, message } from 'antd';
 import styles from './App.css';
 import * as XLSX from 'xlsx';
 
@@ -26,6 +26,7 @@ class App extends Component {
         </Breadcrumb>
       ),
       selectedRowKeys: [], // Check here to configure the default column
+      zeroLoading: false,
     }
   }
 
@@ -114,6 +115,97 @@ class App extends Component {
       })
     }
 
+  }
+
+  onExportExcel = (headers, data, fileName = new Date().getTime() + '.xlsx') => {
+    message
+      .loading('开始准备下载数据..', 2)
+      .then(this.processExcelExport(headers, data, fileName));
+  }
+
+  processExcelExport = (headers, data, fileName) => {
+
+    const _headers = headers
+      .map((item, i) => Object.assign({}, { key: item.key, title: item.title, position: String.fromCharCode(65 + i) + 1 }))
+      .reduce((prev, next) => Object.assign({}, prev, { [next.position]: { key: next.key, v: next.title } }), {});
+
+    const _data = data
+      .map((item, i) => headers.map((key, j) => Object.assign({}, { content: item[key.key], position: String.fromCharCode(65 + j) + (i + 2) })))
+      // 对刚才的结果进行降维处理（二维数组变成一维数组）
+      .reduce((prev, next) => prev.concat(next))
+      // 转换成 worksheet 需要的结构
+      .reduce((prev, next) => Object.assign({}, prev, { [next.position]: { v: next.content } }), {});
+
+    // 合并 headers 和 data
+    const output = Object.assign({}, _headers, _data);
+    // 获取所有单元格的位置
+    const outputPos = Object.keys(output);
+    // 计算出范围 ,["A1",..., "H2"]
+    const ref = `${outputPos[0]}:${outputPos[outputPos.length - 1]}`;
+
+    // 构建 workbook 对象
+    const wb = {
+      SheetNames: ['mySheet'],
+      Sheets: {
+        mySheet: Object.assign(
+          {},
+          output,
+          {
+            '!ref': ref,
+            '!cols': [{ wpx: 45 }, { wpx: 100 }, { wpx: 200 }, { wpx: 80 }, { wpx: 150 }, { wpx: 100 }, { wpx: 300 }, { wpx: 300 }],
+          },
+        ),
+      },
+    };
+
+    // 导出 Excel
+    XLSX.writeFile(wb, fileName);
+  }
+
+  zeroFill = () => {
+    this.setState({
+      zeroLoading: true
+    })
+
+    let headers = this.state.tableHeader;
+    let data = this.state.tableData;
+    let newData = data.map(item => headers.map(key => {
+      if (!item[key.key]) {
+        item[key.key] = 0
+      }
+      let map = new Map();
+      map.set(key.key, item[key.key]);
+      return map;
+    }).reduce((x, y) => {
+      let obj = Object.create(null);
+      for (let [k, v] of x) {
+        obj[k] = v;
+      }
+      for (let [k, v] of y) {
+        obj[k] = v;
+      }
+      return obj;
+    })
+    ).reduce((x, y) => {
+      let array = [];
+      if (Array.isArray(x)) {
+        array = array.concat(x);
+      } else {
+        array.push(x);
+      }
+      if (Array.isArray(y)) {
+        array = array.concat(y);
+      } else {
+        array.push(y);
+      }
+      return array;
+    })
+    this.setState({
+      tableData: newData
+    })
+    this.setState({
+      zeroLoading: false
+    })
   }
 
   render() {
@@ -217,8 +309,15 @@ class App extends Component {
               <Icon type='upload' />
               <input className={styles['file-uploader']} type='file' accept='.xlsx, .xls' onChange={this.onImportExcel} />
               <span className={styles['upload-text']} hidden>上传文件</span>
+              <Button type="primary" loading={this.state.zeroLoading} onClick={() => this.zeroFill()}>
+                数据补0
+              </Button>
+              <Button style={{ marginLeft: 10 }} type="primary" icon="download" onClick={() => this.onExportExcel(this.state.tableHeader, this.state.tableData)}>
+                下载
+              </Button>
               <p className={styles['upload-tip']}>支持 .xlsx、.xls 格式的文件</p>
-              <Table rowSelection={rowSelection} columns={this.state.tableHeader} dataSource={this.state.tableData} />
+              <Table style={{ display: 'none' }} rowSelection={rowSelection} />
+              <Table columns={this.state.tableHeader} dataSource={this.state.tableData} />
             </div>
           </Content>
           <Footer style={{ textAlign: 'center' }}>Ant Design ©2018 Created by Ant UED</Footer>
