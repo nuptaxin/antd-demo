@@ -316,8 +316,8 @@ class App extends Component {
                 下载
               </Button>
               <p className={styles['upload-tip']}>支持 .xlsx、.xls 格式的文件</p>
-              <Table style={{ display: 'none' }} rowSelection={rowSelection} />
-              <Table columns={this.state.tableHeader} dataSource={this.state.tableData} />
+              <Table rowSelection={rowSelection} columns={this.state.tableHeader} dataSource={this.state.tableData} />
+              <Table style={{ display: 'none' }} columns={this.state.tableHeader} dataSource={this.state.tableData} />
             </div>
           </Content>
           <Footer style={{ textAlign: 'center' }}>Ant Design ©2018 Created by Ant UED</Footer>
